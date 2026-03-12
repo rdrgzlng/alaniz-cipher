@@ -1,0 +1,70 @@
+============================================================================================================
+EXPERIMENT 10: CPA KEY RECOVERY VIA SCALING CLOSED FORM
+============================================================================================================
+Breaks c = A*s + B*sigma(A*s) for homogeneous sigma using paired CPA queries (s, lambda*s)
+
+============================================================================================================
+SIGMA=inverse | d=2
+============================================================================================================
+    p   lambda    Delta     qA     qB   qTot  Aeff_ok   Astalk     B_ok    valid     time_A     time_B   time_tot
+------------------------------------------------------------------------------------------------------------
+   17        2        7      4      2      6     True     True     True     True     0.0022     0.0014     0.0036
+   23        2       10      4      2      6     True     True     True     True     0.0022     0.0013     0.0035
+   29        2       13      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+   47        2       22      4      2      6     True     True     True     True     0.0019     0.0013     0.0031
+   59        2       28      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+   89        2       43      4      2      6     True     True     True     True     0.0019     0.0014     0.0034
+  131        2       64      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+  251        2      124      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+
+============================================================================================================
+SIGMA=cube | d=2
+============================================================================================================
+    p   lambda    Delta     qA     qB   qTot  Aeff_ok   Astalk     B_ok    valid     time_A     time_B   time_tot
+------------------------------------------------------------------------------------------------------------
+   17        2        6      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+   23        2        6      4      2      6     True     True     True     True     0.0018     0.0012     0.0030
+   29        2        6      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+   47        2        6      4      2      6     True     True     True     True     0.0018     0.0012     0.0030
+   59        2        6      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+   89        2        6      4      2      6     True     True     True     True     0.0018     0.0012     0.0031
+  131        2        6      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+  251        2        6      4      2      6     True     True     True     True     0.0019     0.0012     0.0031
+
+============================================================================================================
+SIGMA=inverse | d=4
+============================================================================================================
+    p   lambda    Delta     qA     qB   qTot  Aeff_ok   Astalk     B_ok    valid     time_A     time_B   time_tot
+------------------------------------------------------------------------------------------------------------
+   17        2        7      8      4     12     True     True     True     True     0.0042     0.0026     0.0068
+   23        2       10      8      4     12     True     True     True     True     0.0042     0.0026     0.0068
+   29        2       13      8      4     12     True     True     True     True     0.0042     0.0026     0.0068
+   47        2       22      8      4     12     True     True     True     True     0.0042     0.0026     0.0068
+   59        2       28      8      4     12     True     True     True     True     0.0043     0.0026     0.0069
+   89        2       43      8      4     12     True     True     True     True     0.0043     0.0026     0.0069
+  131        2       64      8      4     12     True     True     True     True     0.0042     0.0027     0.0069
+  251        2      124      8      4     12     True     True     True     True     0.0042     0.0026     0.0069
+
+============================================================================================================
+SIGMA=cube | d=4
+============================================================================================================
+    p   lambda    Delta     qA     qB   qTot  Aeff_ok   Astalk     B_ok    valid     time_A     time_B   time_tot
+------------------------------------------------------------------------------------------------------------
+   17        2        6      8      4     12     True     True     True     True     0.0041     0.0026     0.0067
+   23        2        6      8      4     12     True     True     True     True     0.0044     0.0027     0.0071
+   29        2        6      8      4     12     True     True     True     True     0.0042     0.0027     0.0069
+   47        2        6      8      4     12     True     True     True     True     0.0042     0.0026     0.0068
+   59        2        6      8      4     12     True     True     True     True     0.0042     0.0026     0.0068
+   89        2        6      8      4     12     True     True     True     True     0.0042     0.0026     0.0068
+  131        2        6      8      4     12     True     True     True     True     0.0041     0.0026     0.0067
+  251        2        6      8      4     12     True     True     True     True     0.0041     0.0026     0.0068
+
+============================================================================================================
+INTERPRETATION
+============================================================================================================
+- qA = 2d queries recover A in the coefficient query basis (A_eff).
+- If P (coeff->stalk map) is invertible, Astalk=True confirms exact stalk-space A.
+- qB is the number of extra CPA queries needed to find an invertible Z and solve for B.
+- No search over GL(d, F_p) is performed.
+- For sigma=inverse and sigma=cube, successful recovery falsifies the claim that the final design
+  resists CPA merely because sigma is applied after the secret map A.
