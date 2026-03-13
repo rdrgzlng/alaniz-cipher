@@ -1,0 +1,731 @@
+\documentclass[12pt,a4paper]{article}
+
+% ---------------------------------------------------------------
+% Packages
+% ---------------------------------------------------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{bm}
+
+\usepackage{geometry}
+\geometry{margin=2.5cm, top=3cm, bottom=3cm}
+
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{tabularx}
+
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=black,
+  citecolor=black,
+  urlcolor=blue,
+  pdftitle={Extended Security Analysis of the Alaniz Cipher},
+  pdfauthor={Alfredo Rodriguez Langa},
+}
+
+\usepackage{xcolor}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{abstract}
+
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small, frame=single, breaklines=true}
+
+% ---------------------------------------------------------------
+% Theorem environments
+% ---------------------------------------------------------------
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{remark}[theorem]{Remark}
+
+% ---------------------------------------------------------------
+% Math macros
+% ---------------------------------------------------------------
+\newcommand{\Fp}{\mathbb{F}_p}
+\newcommand{\Fq}{\mathbb{F}_q}
+\newcommand{\GL}{\mathrm{GL}}
+\newcommand{\Hzero}{H^{0}}
+\newcommand{\Im}{\mathrm{Im}}
+\newcommand{\Tr}{\mathrm{Tr}}
+\newcommand{\bsigma}{\bm{\sigma}}
+\newcommand{\calF}{\mathcal{F}}
+\newcommand{\norm}[1]{\lVert #1 \rVert}
+
+% ---------------------------------------------------------------
+% Header / footer
+% ---------------------------------------------------------------
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\small Extended Security Analysis of the Alaniz Cipher}
+\lhead{\small A.~Rodr\'iguez Langa, INECO}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% ---------------------------------------------------------------
+% Title
+% ---------------------------------------------------------------
+\title{%
+  \textbf{Extended Security Analysis of the Alaniz Cipher}\\[6pt]
+  \large Chosen-Plaintext Attacks, Key Recovery, and Structural\\
+  Properties of the Local Encryption Map\\[4pt]
+  \normalsize\textit{Companion analysis to: L.~Alaniz Pintos,
+  ``The Alaniz Cipher: Encryption from Nonlinear Sheaf Morphisms
+  over Graphs'', 2026}
+}
+
+\author{%
+  Alfredo Rodr\'iguez Langa\\[4pt]
+  \normalsize Smart Products Division, INECO\\
+  \normalsize Madrid, Spain\\[2pt]
+  \small \href{mailto:alfredo.rodriguez@ineco.com}{alfredo.rodriguez@ineco.com}
+}
+
+\date{March 2026}
+
+% ---------------------------------------------------------------
+% Document
+% ---------------------------------------------------------------
+\begin{document}
+
+\maketitle
+\thispagestyle{fancy}
+
+% ---------------------------------------------------------------
+\begin{abstract}
+This document reports seven reproducible security experiments
+(Experiments~07--13) that complement and stress-test the security
+claims of the Alaniz Cipher (SHEC). The experiments probe the local
+encryption map $g_B(y) = y + B\,\sigma(y)$ for collision properties,
+attempt key recovery under known- and chosen-plaintext models, and
+analyse the algebraic structure exploitable by an adversary.
+
+The central finding is contained in \textbf{Experiment~10}: both
+supported nonlinear maps ($\sigma = x^3$ and $\sigma = x^{p-2}$)
+satisfy a componentwise scaling law
+$\sigma(\lambda y)_i = \lambda^e\,\sigma(y)_i$, which allows a
+chosen-plaintext attacker to recover the per-node key matrices
+$(A_v, B_v)$ using only $O(d)$ encryption queries---independently of
+the field size~$p$ and the size of $\GL(d,\Fp)$.
+This result directly contradicts the CPA-resistance claim in the
+original paper and is not addressed by the NL-SMIP hardness
+reduction, which concerns a distinct adversarial model.
+The remaining experiments characterise the collision structure of
+$g_B$ (Experiments~07 and~11), measure the concrete complexity of
+exhaustive and differential key recovery under the known-plaintext
+model (Experiments~08, 09, 12, and~13), and provide the algebraic
+ground-truth necessary for evaluating any proposed fix.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+% ================================================================
+\section{Introduction}
+% ================================================================
+
+The Alaniz Cipher encrypts a message encoded as a global section
+$s \in \Hzero(G, \calF)$ of a cellular sheaf over a graph~$G$.
+At each node $v$ the local ciphertext is
+\begin{equation}\label{eq:encrypt}
+  c_v = A_v \cdot s_v + B_v \cdot \sigma(A_v \cdot s_v),
+  \qquad (A_v, B_v) \in \GL(d, \Fp)^2,
+\end{equation}
+where $\sigma : \Fp^d \to \Fp^d$ is a public componentwise nonlinear
+map. The original paper argues that this construction resists
+chosen-plaintext attacks (CPA) because $\sigma$ defeats linearisation:
+any attempt to model $c_v$ as a linear function of $s_v$ produces an
+inconsistent system as soon as enough ciphertext pairs are collected.
+
+The experiments in this document examine whether non-linear attacks
+succeed. They are organised in order of increasing algebraic
+sophistication:
+
+\begin{itemize}
+  \item \textbf{Experiments~07 and~11} characterise the map
+    $g_B(y) = y + B\,\sigma(y)$, the core function the attacker
+    must invert.
+  \item \textbf{Experiment~08} establishes the exact threshold at
+    which the key becomes trivially recoverable ($d = 1$) and
+    confirms algebraically that linear attacks fail for $d \geq 2$.
+  \item \textbf{Experiments~09 and~12} measure the empirical cost of
+    key recovery under the known-plaintext model via exhaustive
+    A-search.
+  \item \textbf{Experiment~10} presents a direct CPA break requiring
+    only $O(d)$ queries.
+  \item \textbf{Experiment~13} proposes a differential column attack
+    that recovers the columns of $A$ independently, reducing the
+    search space from $|\GL(d,p)|$ to $d\,(p^d - 1)$ candidates.
+\end{itemize}
+
+All experiments use the production implementation in \texttt{alaniz/}
+without modification. Random seeds are fixed for full reproducibility.
+
+% ================================================================
+\section{Protocol Notation}
+% ================================================================
+
+For reference, Table~\ref{tab:notation} summarises the quantities
+used throughout this document.
+
+\begin{table}[h]
+\centering
+\caption{Notation used in this analysis.}
+\label{tab:notation}
+\begin{tabularx}{\linewidth}{>{\ttfamily}lX}
+\toprule
+\normalfont Symbol & Meaning \\
+\midrule
+$p$                & Field characteristic (prime) \\
+$d$                & Fibre dimension \\
+$G$                & Graph with $n$ nodes \\
+$\Hzero(G, \calF)$ & Space of global sections (plaintext space) \\
+$s_v \in \Fp^d$    & Local plaintext at node $v$ \\
+$(A_v, B_v)$       & Secret key at node $v$; both in $\GL(d,\Fp)$ \\
+$\sigma$           & Public componentwise map:
+                     \texttt{inverse} ($x_i \mapsto x_i^{p-2}$)
+                     or \texttt{cube} ($x_i \mapsto x_i^3$) \\
+$y_v = A_v s_v$    & Secret intermediate vector at node $v$ \\
+$g_B(y)$           & $y + B\,\sigma(y)$: local encryption function \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Decryption solves $y + B_r\,\sigma(y) = c_r$ at the root node,
+propagates via restriction maps, and uses cohomological filtering to
+select the valid global section.
+
+% ================================================================
+\section{Experiment 07 --- Collision Table for the Local Encryption Map}
+% ================================================================
+
+\subsection{Objective}
+
+Quantify the surjectivity and preimage multiplicity of $g_B$ over the
+full domain $\Fp^d$ for $d \in \{1, 2, 4\}$ and
+$p \in \{17, 23, 29, 47, 59, 89, 131, 251\}$.
+This provides concrete evidence of whether $g_B$ is injective, which
+determines decryption ambiguity.
+
+\subsection{Methodology}
+
+For $d \in \{1, 2\}$, all $p^d$ inputs are enumerated exactly.
+The preimage map $\{c \mapsto g_B^{-1}(c)\}$ is constructed and the
+following metrics are computed per random $B \in \GL(d, \Fp)$
+(averaged over eight independent draws):
+\begin{equation}
+  \text{image fraction} = \frac{|\Im(g_B)|}{p^d}, \qquad
+  \gamma_B = \sum_{c \in \Fp^d} \!\left(\frac{|g_B^{-1}(c)|}{p^d}\right)^{\!2}.
+\end{equation}
+For $d = 4$, where exhaustive enumeration is infeasible, a birthday
+probe with $3\lceil\sqrt{p^d}\rceil$ random samples guarantees a
+collision with high probability by the birthday bound. Every collision
+example is verified against the algebraic condition
+$\Delta y = B\bigl(\sigma(y_2) - \sigma(y_1)\bigr)$.
+
+\subsection{Findings}
+
+Across all tested primes and both $\sigma$ functions, the image
+fraction stabilises near $0.53$ for $\sigma = \texttt{inverse}$
+and $0.66$ for $\sigma = \texttt{cube}$ in dimension $d = 1$, and
+near $0.62$--$0.64$ for $d = 2$. The map $g_B$ is therefore
+consistently non-surjective: roughly one third of ciphertexts at
+each node are unreachable under a fixed key. Collisions are confirmed
+at all parameter sizes, including $d = 4$, $p = 251$.
+
+\subsection{Security Implications}
+
+Non-surjectivity implies two consequences. First, decryption at the
+root node admits multiple preimages (at most the maximum multiplicity,
+observed at 2--5 for $d = 2$), introducing ambiguity that the
+cohomological filter resolves. Second, the collision probability
+$\gamma_B$ provides a direct empirical estimate of the parameter
+$\gamma$ from Theorem~7.1 of the original paper.
+
+% ================================================================
+\section{Experiment 08 --- Key Recovery at $d=1$ and Linear Attack Diagnostics}
+% ================================================================
+
+\subsection{Objective}
+
+Establish the exact threshold below which the key is algebraically
+recoverable, and confirm that the linearisation defence holds for
+$d \geq 2$.
+
+\subsection{Exact Recovery for $d = 1$}
+
+For $d = 1$ the encryption reduces to a scalar equation. Given two
+plaintext--ciphertext pairs $(s_1, c_1)$ and $(s_2, c_2)$:
+
+\paragraph{Case $\sigma = \texttt{inverse}$.}
+Multiplying $c_i = a s_i + b(as_i)^{-1}$ through by $as_i$ and
+subtracting the two equations yields:
+\begin{equation}
+  a = \frac{c_1 s_1 - c_2 s_2}{s_1^2 - s_2^2}, \qquad
+  b = c_1(as_1) - (as_1)^2.
+\end{equation}
+
+\paragraph{Case $\sigma = \texttt{cube}$.}
+The two equations form a $2\times 2$ Vandermonde-type system in
+$(a,\, ba^3)$, solved by Cramer's rule with determinant
+$s_1 s_2^3 - s_2 s_1^3$.
+
+Both formulas are exact over $\Fp$ and require only two captures.
+
+\subsection{Linear Surrogate Failure for $d \geq 2$}
+
+For $d \in \{2, 4\}$, the experiment builds the linear surrogate
+$c_v = M s_v$ (treating the key as a single $d\times d$ matrix $M$)
+and tracks its rank and consistency as captures accumulate. As
+expected, the nonlinearity of $\sigma$ renders the system
+inconsistent after enough pairs, confirming that pure linearisation
+fails.
+
+\subsection{Findings and Security Implications}
+
+Dimension $d = 1$ provides \textbf{no computational security}: the
+key is recoverable with 2 plaintext-ciphertext pairs using only
+modular arithmetic. The minimum secure dimension is $d \geq 2$.
+However, Experiment~10 shows that a non-linear CPA attack succeeds
+at all dimensions.
+
+% ================================================================
+\section{Experiment 09 --- Exhaustive Known-Plaintext Key Recovery}
+% ================================================================
+
+\subsection{Objective}
+
+Measure the concrete cost of recovering the per-node key $(A_v, B_v)$
+under the known-plaintext model via exhaustive search over
+$A \in \GL(d, \Fp)$ with linear solve for $B$.
+
+\subsection{Methodology}
+
+For each candidate matrix $\hat{A}$, compute
+$y_i = \hat{A}\, s_i$ and $z_i = \sigma(y_i)$ for $d$ fit captures,
+then solve the linear system
+\begin{equation}
+  c_i - y_i = B\, z_i, \qquad i = 1, \ldots, d,
+\end{equation}
+for the $d^2$ entries of $B$. Validate the recovered $(\hat{A}, \hat{B})$
+against all $k$ captures. The campaign covers
+$p \in \{17, 23, 29, 47, 59, 89, 131, 251\}$, $d = 2$,
+with $k \in \{4, 8, 12\}$ captures. For
+$|\GL(2, p)| \leq 10^5$ exhaustive enumeration is used;
+for larger primes 5\,000 random samples are drawn.
+
+\subsection{Findings and Security Implications}
+
+For $p \leq 29$, $|\GL(2, p)| \leq 7\times 10^5$, and the true key
+is recovered exactly in all trials. For $p \geq 47$ the sample
+probability is negligible (${\approx}5000/|\GL(2,p)|$). The number
+of false positives drops sharply with $k$: at $k = 12$ no false
+positive survives any exhaustive run. The exhaustive A-search is
+intractable at standard parameters ($d = 4$, $p \approx 2^{31}$),
+but Experiment~10 renders this bound irrelevant by recovering the
+key in $O(d)$ chosen-plaintext queries regardless of $p$.
+
+% ================================================================
+\section{Experiment 10 --- Direct CPA Key Recovery via Scaling Homogeneity}
+% ================================================================
+
+\textit{This is the main security finding of this analysis.}
+
+\subsection{Objective}
+
+Demonstrate a chosen-plaintext attack that recovers $(A_v, B_v)$
+in $O(d)$ encryption queries, without any exhaustive search over
+$\GL(d, \Fp)$.
+
+\subsection{Mathematical Basis}
+\label{sub:scaling}
+
+Both supported nonlinear maps satisfy a \textbf{componentwise scaling
+law}:
+\begin{equation}\label{eq:scaling}
+  \sigma(\lambda\, y)_i = \lambda^e\, \sigma(y)_i
+  \qquad \forall\, y \in \Fp^d,\; \lambda \in \Fp^*,
+\end{equation}
+with $e = 3$ for $\sigma = \texttt{cube}$ and $e \equiv p-2 \pmod{p-1}$
+for $\sigma = \texttt{inverse}$.
+
+Because $B$ acts linearly on $\sigma(y)$, equation~\eqref{eq:scaling}
+extends to the full ciphertext. For plaintexts $s = t\,e_j$
+(scalar multiples of the $j$-th canonical basis vector of the
+$H^0$-coefficient space), the local ciphertext satisfies
+\begin{equation}\label{eq:pair}
+  c(t\,e_j) = t\,a_j + t^e\,B\,\sigma(a_j),
+\end{equation}
+where $a_j = A\,e_j$ is the $j$-th column of $A$.
+Querying $s_1 = e_j$ ($t = 1$) and $s_2 = \lambda\,e_j$
+($t = \lambda$) and writing $w_j = B\,\sigma(a_j)$ gives
+\begin{equation}\label{eq:2x2}
+  \begin{pmatrix} 1 & 1 \\ \lambda & \lambda^e \end{pmatrix}
+  \begin{pmatrix} a_j \\ w_j \end{pmatrix}
+  = \begin{pmatrix} c_1 \\ c_2 \end{pmatrix}.
+\end{equation}
+The determinant is $\Delta = \lambda^e - \lambda$. Choosing any
+$\lambda$ with $\Delta \neq 0$ (which exists for all $p > 3$) yields
+a \emph{closed-form} solution:
+\begin{equation}\label{eq:solution}
+  a_j = \frac{\lambda^e c_1 - c_2}{\Delta}, \qquad
+  w_j = \frac{-\lambda c_1 + c_2}{\Delta}.
+\end{equation}
+
+Repeating for $j = 0, \ldots, d-1$ recovers the effective key
+matrix $A_{\text{eff}} := A\,P$ in $2d$ queries, where $P$ is the
+publicly computable coefficient-to-stalk map at the root node.
+Recovering $A$ in stalk coordinates:
+\begin{equation}
+  A = A_{\text{eff}} \cdot P^{-1}.
+\end{equation}
+
+With $A_{\text{eff}}$ known, $B$ is recovered by collecting $d$
+additional queries with linearly independent
+$z^{(i)} = \sigma(A_{\text{eff}}\,s^{(i)})$ and solving
+\begin{equation}\label{eq:B-recovery}
+  B = W\,Z^{-1}, \qquad
+  W_i = c^{(i)} - A_{\text{eff}}\,s^{(i)}, \quad
+  Z = \bigl[z^{(1)} \cdots z^{(d)}\bigr].
+\end{equation}
+Total query count: $2d + d = 3d$ (worst case), or $2d + 1$ when
+the basis queries already provide an invertible $Z$.
+
+\subsection{Experimental Validation}
+
+The attack is executed against all primes
+$p \in \{17, 23, 29, 47, 59, 89, 131, 251\}$, both $\sigma$
+functions, and dimensions $d \in \{2, 4\}$. In every case:
+
+\begin{itemize}
+  \item $A_{\text{eff}}$ is recovered exactly (\texttt{A\_eff\_match = True}).
+  \item $A$ in stalk coordinates is recovered exactly (\texttt{A\_stalk\_match = True}).
+  \item $B$ is recovered exactly (\texttt{B\_match = True}).
+  \item The recovered key passes 20 fresh validation queries
+    (\texttt{valid = True}).
+\end{itemize}
+
+For $d = 4$ the total number of encryption queries used is $12$,
+independently of $p$.
+
+\subsection{Security Implications}
+\label{sub:implications}
+
+This result has the following consequences for the security claims
+of the original paper:
+
+\begin{enumerate}
+
+  \item \textbf{The CPA-resistance claim is falsified for all
+    parameter sets.} The attack does not require linearisation and
+    is not blocked by the nonlinearity of $\sigma$. On the contrary,
+    the scaling homogeneity of $\sigma$ \emph{is} the algebraic
+    property that enables the attack. The statement ``linearisation
+    fails because $B_v\,\sigma(A_v s_v)$ mixes key and message
+    nonlinearly'' remains true but does not capture this attack
+    vector.
+
+  \item \textbf{The NL-SMIP hardness reduction is not affected.}
+    The reduction from MQ establishes that recovering the key from a
+    polynomial system with secret coefficients is NP-hard. The
+    scaling attack does not solve NL-SMIP; it avoids it entirely by
+    exploiting a structural property of $\sigma$ outside the
+    polynomial formulation.
+
+  \item \textbf{Post-quantum claims are unaffected in substance.}
+    The scaling attack is purely algebraic and applies with the same
+    $O(d)$ complexity classically and quantumly. It does not exploit
+    a quantum speedup; it is simply faster than any exhaustive
+    search.
+
+  \item \textbf{The attack extends to all nodes simultaneously.}
+    Each node's key $(A_v, B_v)$ is independent and the attack is
+    node-local. Querying all $n$ nodes requires $3dn$ encryption
+    queries. For a 6-node path with $d = 4$ this is 72 queries.
+
+  \item \textbf{The attack is repairable.} Any $\sigma$ satisfying
+    $\sigma(\lambda y) \neq \lambda^e \sigma(y)$ for all $e$ would
+    defeat this specific attack. Extending the $\sigma$-selection
+    analysis of Experiment~04 to include scaling homogeneity is the
+    natural direction for a fix.
+
+\end{enumerate}
+
+% ================================================================
+\section{Experiment 11 --- Statistical Collision Study of $g_B$}
+% ================================================================
+
+\subsection{Objective}
+
+Obtain statistically robust estimates of the collision properties of
+$g_B$ across the full parameter space, extending the spot-check of
+Experiment~07 to large samples of $B$ matrices.
+
+\subsection{Methodology}
+
+For $d = 2$ and all primes, exact enumeration over $p^d$ inputs is
+repeated for 12--24 independent draws of $B \in \GL(d,\Fp)$.
+For $d = 4$, 30\,000 random inputs are sampled per $B$.
+Per configuration the following are reported:
+\begin{itemize}
+  \item Mean image fraction $\pm$ standard deviation over the
+    $B$-sample.
+  \item Mean preimage multiplicity $p^d / |\Im(g_B)|$.
+  \item Worst-$B$ examples (lowest image fraction).
+  \item Aggregated multiplicity histogram.
+\end{itemize}
+
+\subsection{Findings and Security Implications}
+
+The image fraction for $\sigma = \texttt{inverse}$ stabilises near
+$0.63$ for $d = 2$ with very low variance ($\sigma_{\text{std}} < 0.01$
+for $p \geq 59$), confirming that non-surjectivity is a stable
+property of $\sigma$, not an artefact of unlucky $B$ choices.
+The maximum preimage multiplicity remains bounded below 7 for
+$d = 2$, $p \leq 251$, consistent with Theorem~7.1 of the original
+paper. Together with Experiment~07, this experiment provides
+empirical estimates of $\gamma \approx 1 - 0.63 = 0.37$ and
+$L \approx 1/0.63 \approx 1.59$ for the $\sigma = \texttt{inverse}$,
+$d = 2$ configuration.
+
+% ================================================================
+\section{Experiment 12 --- Key Recovery Diagnostics and Minimum Capture Analysis}
+% ================================================================
+
+\subsection{Objective}
+
+Measure the minimum number of known-plaintext pairs required for
+unique key recovery at $d = 2$ (exhaustive) and $d = 3$ (sampled),
+and track how quickly false positives are eliminated as captures
+accumulate.
+
+\subsection{Methodology}
+
+For each $\hat{A}$ candidate (exhaustive for $d = 2$, $p = 17$;
+60\,000 random samples for $d = 3$), $B$ is solved from the first
+$d$ captures and the resulting candidate is tested against an
+increasing prefix of up to 20 captures. The \emph{first failure
+index}---the smallest $k$ at which the candidate fails---is recorded.
+The minimum $k$ at which exactly one candidate (the true key) remains
+is denoted $k_{\min}$.
+
+\subsection{Findings and Security Implications}
+
+For $d = 2$, $p = 17$: the number of surviving candidates drops from
+thousands at $k = d = 2$ to single digits by $k = 6$, and to exactly
+1 (no false positives) by $k \approx 10$--$15$, depending on
+$\sigma$. For $d = 3$ in sampled mode, unique recovery is achieved by
+$k \approx 12$--$18$ captures. Each capture carries roughly
+$d^2 \log_2 p$ bits of key information, consistent with the
+polynomial system structure. These bounds are primarily relevant for
+toy configurations; at standard parameters the exhaustive A-search
+is infeasible (Experiment~09).
+
+% ================================================================
+\section{Experiment 13 --- Differential Column Attack}
+% ================================================================
+
+\subsection{Objective}
+
+Test whether the columns of $A$ can be recovered \emph{independently}
+via chosen-plaintext differential queries along coordinate axes, and
+measure the resulting reduction in search complexity.
+
+\subsection{Mathematical Basis}
+
+For plaintexts $s = t\,e_j$, consecutive ciphertext differences are:
+\begin{equation}\label{eq:diff}
+  \Delta c_t = c\bigl((t+1)e_j\bigr) - c\bigl(t\,e_j\bigr)
+  = a_j + B\bigl(\sigma\bigl((t+1)a_j\bigr) - \sigma(t\,a_j)\bigr).
+\end{equation}
+For a guessed column $\hat{a}_j$, this is a linear equation in $B$.
+Collecting $d$ such differentials and denoting
+$\Delta\sigma_t = \sigma((t+1)\hat{a}_j) - \sigma(t\hat{a}_j)$:
+\begin{equation}
+  \Delta c_t - \hat{a}_j = B\,\Delta\sigma_t.
+\end{equation}
+If the matrix $[\Delta\sigma_0 \cdots \Delta\sigma_{d-1}]$ is
+invertible, $B$ is determined uniquely.
+Each column of $A$ is recoverable by searching $p^d - 1$ nonzero
+candidates for $\hat{a}_j$, reducing the total search space from
+$|\GL(d,p)| \approx p^{d^2}$ to $d\,(p^d - 1)$.
+
+\subsection{Findings}
+
+\begin{description}
+  \item[$d = 2$, $p = 17$:] $p^2 - 1 = 288$ candidates per axis
+    \emph{vs.}\ $|\GL(2,17)| = 69\,360$ full matrices. Unique recovery
+    in 4--6 differentials in all tested configurations.
+  \item[$d = 3$, $p = 17$:] $p^3 - 1 = 4\,912$ candidates
+    \emph{vs.}\ $|\GL(3,17)| \approx 1.4\times 10^7$. Unique recovery
+    in 4--7 differentials.
+\end{description}
+
+\paragraph{Limitation.} If column $a_j$ has a zero in component $i$,
+then $\sigma(t\,a_j)_i = 0$ for all $t$, making the $i$-th row of
+$\Delta\sigma$ identically zero. The corresponding entries of $B$
+remain undetermined and the attack produces false negatives for those
+configurations.
+
+\subsection{Security Implications}
+
+The differential column attack reduces per-column search from
+$p^{d^2}$ to $p^d - 1$ candidates---an exponential improvement for
+$d \geq 2$. It is dominated by the $O(d)$-query attack of
+Experiment~10 in practical terms, but provides an independent
+recovery path useful when direct query access is restricted.
+
+% ================================================================
+\section{Discussion}
+% ================================================================
+
+\subsection{The Scaling Homogeneity as a Structural Vulnerability}
+
+The root cause of the CPA break in Experiment~10 is the interplay
+between three design choices:
+\begin{enumerate}
+  \item $\sigma$ is applied \emph{componentwise}, enabling
+    $\sigma(\lambda y)_i = \lambda^e \sigma(y)_i$.
+  \item $B$ acts \emph{linearly} on $\sigma(y)$, so
+    $B\,\sigma(\lambda y) = \lambda^e\,B\,\sigma(y)$.
+  \item The plaintext space includes \emph{scalar multiples} of any
+    vector, allowing the attacker to query $(s, \lambda s)$ and
+    decouple $y = As$ from $w = B\sigma(As)$ via a $2\times 2$
+    linear system.
+\end{enumerate}
+Any two of these three properties in isolation would not be sufficient
+for the attack. A fix must therefore break at least one of them.
+The most natural option is replacing $\sigma$ with a map that lacks
+componentwise scaling while preserving bijectivity and compatibility
+with decryption.
+
+\subsection{Relationship to the Original Security Proof}
+
+The original paper's CPA resistance argument considers designs where
+$\sigma$ is applied before or independently of the secret map,
+showing that in those cases the key can be recovered linearly.
+The final design places $\sigma$ \emph{after} the secret linear map
+$A_v$, which does defeat linearisation. Experiment~10 shows that
+defeating linearisation is necessary but not sufficient for CPA
+security: the scaling homogeneity provides an alternative attack that
+does not require the attacker to linearise the system.
+
+The NL-SMIP hardness proof (Lemma~6.2 of the original paper)
+establishes that recovering the key from a polynomial system with
+secret coefficients is NP-hard. The scaling attack models a different
+scenario---one in which the attacker controls the plaintexts and
+exploits algebraic structure in $\sigma$. These two models are not
+equivalent, and the NP-hardness of NL-SMIP does not imply CPA
+security.
+
+\subsection{Collision Properties and Decryption Correctness}
+
+Experiments~07 and~11 together establish that $g_B$ is
+non-surjective with image fraction $\approx 0.63$ for $d = 2$.
+This provides empirical estimates of $\gamma \approx 0.37$ and
+$L \approx 1.59$ for the correctness bound in Theorem~7.1
+($\Pr[\text{ambiguity}] \leq (L-1)\,\gamma^{n-1}$). For graphs with
+$n \geq 6$ nodes, decryption ambiguity is negligible in practice.
+
+% ================================================================
+\section{Conclusion}
+% ================================================================
+
+This analysis presents seven reproducible security experiments that
+probe the Alaniz Cipher from multiple adversarial perspectives.
+The key conclusions are:
+
+\begin{enumerate}
+  \item \textbf{Dimension $d = 1$ is trivially insecure}: the key is
+    algebraically recoverable from 2 plaintext-ciphertext pairs
+    (Experiment~08).
+
+  \item \textbf{The local map $g_B$ is consistently non-surjective}
+    (image fraction $\approx 0.63$) with bounded preimage
+    multiplicity, validating the decryption uniqueness analysis
+    (Experiments~07 and~11).
+
+  \item \textbf{Known-plaintext exhaustive key recovery} is feasible
+    for toy parameters ($d = 2$, $p \leq 29$) and requires
+    approximately 10--15 captures for unique recovery; it is
+    infeasible at proposed standard parameters (Experiments~09
+    and~12).
+
+  \item \textbf{A direct CPA break exists for all parameters}: the
+    scaling homogeneity $\sigma(\lambda y) = \lambda^e\,\sigma(y)$
+    allows recovery of the per-node key $(A_v, B_v)$ in $O(d)$
+    chosen-plaintext queries, independently of $p$ (Experiment~10).
+    This is the principal security finding of this analysis.
+
+  \item \textbf{A differential column attack} reduces the per-column
+    search space from $|\GL(d,p)|$ to $d\,(p^d - 1)$ candidates
+    (Experiment~13).
+\end{enumerate}
+
+The scaling attack of Experiment~10 is a significant vulnerability
+that requires attention before the scheme can be considered secure
+under standard CPA definitions. The natural direction for a repair
+is to replace the componentwise scaling-homogeneous $\sigma$ with a
+map that mixes components across the $d$-dimensional fibre while
+preserving the algebraic properties required for efficient decryption.
+
+% ================================================================
+\section*{Experiment Summary}
+\addcontentsline{toc}{section}{Experiment Summary}
+% ================================================================
+
+\begin{table}[h]
+\centering
+\caption{Summary of Experiments 07--13.}
+\label{tab:summary}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabularx}{\linewidth}{c l l l X}
+\toprule
+Exp & Model & Attack / Analysis & Complexity & Main Result \\
+\midrule
+07 & ---  & $g_B$ collision characterisation
+           & $O(p^d \cdot b)$
+           & Image fraction $\approx 0.63$; collisions universal \\
+08 & KPA  & Algebraic key recovery
+           & $O(1)$ for $d{=}1$
+           & $d{=}1$ trivially broken; linearisation fails at $d{\geq}2$ \\
+09 & KPA  & Exhaustive A-search + linear $B$
+           & $O(|\GL(d,p)|)$
+           & Feasible for $p \leq 29$; intractable at standard params \\
+\textbf{10} & \textbf{CPA}
+           & \textbf{Scaling homogeneity attack}
+           & $\bm{O(d)}$ \textbf{queries}
+           & \textbf{Full key recovery at all params; CPA claim falsified} \\
+11 & ---  & $g_B$ statistical multiplicity
+           & $O(p^d \cdot b)$
+           & Stable image fraction; worst-$B$ families identified \\
+12 & KPA  & Capture count diagnostics
+           & $O(|\GL(d,p)| \cdot k)$
+           & Unique recovery in $\approx 10$--$15$ captures for $d{=}2$ \\
+13 & CPA  & Differential column attack
+           & $O(d(p^d{-}1))$
+           & Search from $p^{d^2}$ reduced to $p^d{-}1$ per column \\
+\bottomrule
+\multicolumn{5}{l}{\small KPA = Known-Plaintext Attack; \quad CPA = Chosen-Plaintext Attack.}
+\end{tabularx}
+\end{table}
+
+\bigskip
+\noindent
+\textit{Experiments 07--13 are implemented in
+\texttt{experiments/07\_collision\_table.py} through
+\texttt{experiments/13\_differential\_column\_attack.py}.
+All random seeds are fixed; results are fully reproducible.}
+
+\end{document}
