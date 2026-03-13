@@ -14,28 +14,26 @@ Messages are encoded as global sections of a cellular sheaf — elements of H⁰
 
 $$c_v = A_v \cdot s_v + B_v \cdot \sigma(A_v \cdot s_v)$$
 
-where (Aᵥ, Bᵥ) ∈ GL(d, 𝔽ₚ)² are secret matrices per node and σ is a public nonlinear map (multiplicative inverse or cube map). Decryption uses tree propagation with cohomological filtering in O(n) time.
+where (Aᵥ, Bᵥ) ∈ GL(d, 𝔽ₚ)² are secret matrices per node and σ is a public nonlinear map. The current implementation defaults to `id_spn`, a V6 sigma with identity linear part, cross-component mixing, and an internal constant term. Legacy componentwise maps `inverse` and `cube` are retained only for comparison and historical experiments.
 
 ### Key Properties
 
 | Property | Status | Evidence |
 |---|---|---|
-| Round-trip correctness | ✓ | 176/176 configurations, 0 failures |
-| Decryption uniqueness | ✓ | Pr[ambiguity] ≤ (L−1) · γⁿ⁻¹ (Theorem 7.1) |
-| CPA resistance | ✓ | Degree-3+ polynomial system, linearization fails |
-| Post-quantum resistance | ✓ | No reduction to HSP; Grover is only quantum threat |
-| NP-hardness | ✓ | Formal reduction from MQ (Lemma 6.2) |
+| Round-trip correctness | ✓ | Code path validated for the V6 default `id_spn` |
+| Decryption uniqueness | ✓ | Root solve + tree propagation + global verification |
+| CPA audit status | In progress | Legacy CPA breaks target `inverse` and `cube`, not `id_spn` |
+| Legacy sigma support | Historical | `inverse` and `cube` kept for comparison and archived analysis |
 
 ### Security (NL-SMIP)
 
-The attacker faces a polynomial system whose **coefficients are secret** (unlike MQ/Rainbow where the system is public). NL-SMIP is proven at least NP-hard via reduction from MQ. Security analyzed against Gröbner basis, XL, MinRank, linearization, and all known quantum attacks.
+The attacker faces a polynomial system whose **coefficients are secret** (unlike MQ/Rainbow where the system is public). The repository currently contains both the legacy componentwise sigma family and the V6 `id_spn` repair candidate. Security claims and experiments must therefore be read in that context: several archived analyses target the legacy family and should not be interpreted as a break of V6.
 
 | Parameter Set | dᵥ | log₂ p | n | σ | Classical | Quantum |
 |---|---|---|---|---|---|---|
-| Demo | 2 | 5 | 8 | cube | ~2³⁸ | ~2¹⁹ |
-| Standard | 4 | 31 | 16 | cube | ~2⁹³ | ~2⁴⁷ |
-| PQ-128 | 8 | 61 | 32 | inverse | ~2²⁰⁰ | ~2¹⁰⁰ |
-| PQ-256 | 8 | 127 | 64 | inverse | ~2⁴⁰⁰ | ~2²⁰⁰ |
+| Demo | 2 | 5 | 8 | id_spn | pending | pending |
+| Standard | 4 | 31 | 16 | id_spn | pending | pending |
+| Legacy comparison | 2 | 5 | 8 | cube | archived | archived |
 
 ## Quick Start
 
@@ -46,7 +44,7 @@ cd alaniz-cipher
 # Run the demo
 python -m alaniz.demo.demo_basic
 
-# Run all tests (29 tests, ~5 seconds)
+# Run the test suite
 pip install pytest numpy
 pytest tests/ -v
 
@@ -64,7 +62,7 @@ alaniz-cipher/
 │   │   ├── graph.py        # Graph topologies (paths, trees, stars)
 │   │   └── sheaf.py        # Cellular sheaves, H⁰, coboundary, tree propagation
 │   ├── crypto/
-│   │   ├── sigma.py        # Nonlinear maps σ (inverse, cube)
+│   │   ├── sigma.py        # Nonlinear maps σ (default: id_spn; legacy: inverse, cube)
 │   │   └── protocol.py     # KeyGen, Encrypt, Decrypt, Encode/Decode
 │   └── demo/
 │       └── demo_basic.py   # Interactive walkthrough
@@ -76,22 +74,29 @@ alaniz-cipher/
 │   ├── 05_complexity_analysis.py    # XL attack costs (Table 4)
 │   └── 06_postquantum_analysis.py   # Quantum attack surface (Section 9)
 ├── tests/
-│   └── test_protocol.py    # Full test suite (29 tests)
+│   └── test_protocol.py    # Full test suite
 ├── pyproject.toml
 └── README.md
 ```
 
 ## Test Suite
 
-The 29 automated tests cover:
+The automated tests cover:
 
 - **Round-trip correctness**: 10 random messages + zero section + basis sections
 - **Multiple primes**: 𝔽₁₇, 𝔽₂₃, 𝔽₂₉, 𝔽₄₇
-- **Both σ functions**: inverse (x^{p−2}) and cube (x³)
+- **V6 default sigma**: `id_spn`
+- **Legacy sigma compatibility**: inverse (x^{p−2}) and cube (x³)
 - **8 graph topologies**: paths, stars, binary trees, caterpillars, random trees
 - **Decryption uniqueness**: brute-force confirms single valid section
-- **CPA resistance**: linear system inconsistency verified
+- **Basic CPA sanity check**: linear model inconsistency on the V6 default path
 - **Structural properties**: H⁰ dimension, section validity, tree propagation
+
+## Versioning Notes
+
+- The implementation in `alaniz/crypto` is V6-oriented and defaults to `id_spn`.
+- Several experiments and analysis files still study the legacy `inverse` and `cube` designs because those attacks motivated the V6 change.
+- When an experiment or document discusses scaling homogeneity or componentwise sigma, it refers to the legacy family unless it explicitly names `id_spn`.
 
 ## Requirements
 

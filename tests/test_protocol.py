@@ -4,9 +4,10 @@ Protocolo Alaniz — Test Suite
 Tests:
   1. Round-trip correctness: Dec(Enc(m)) = m
   2. Decryption uniqueness: single valid global section
-  3. CPA resistance: attacker's linear system is inconsistent
+  3. Basic CPA sanity: attacker's linear model is inconsistent
   4. Scaling: multiple primes, dimensions, topologies
   5. Byte encoding/decoding round-trip
+  6. Legacy sigma compatibility
 """
 
 import sys
@@ -28,7 +29,7 @@ from alaniz.crypto.protocol import Protocol, PublicParams, KeyPair
 # FIXTURES
 # ============================================================
 
-def make_protocol(n_nodes=6, dv=2, p=17, sigma_name="inverse", seed=42):
+def make_protocol(n_nodes=6, dv=2, p=17, sigma_name="id_spn", seed=42):
     """Helper to build a protocol instance."""
     rng = random.Random(seed)
     Fp = FiniteField(p)
@@ -75,7 +76,7 @@ class TestRoundTrip:
 
     @pytest.mark.parametrize("p", [17, 23, 29, 47])
     def test_various_primes(self, p):
-        sigma = "inverse"
+        sigma = "id_spn"
         proto, key, rng = make_protocol(p=p, sigma_name=sigma)
         for _ in range(5):
             s = proto.sheaf.random_section(rng=rng)
@@ -103,7 +104,7 @@ class TestRoundTrip:
 class TestTopologies:
     """Round-trip works on various tree topologies."""
 
-    def _test_topology(self, graph, p=17, sigma="inverse", n_tests=5):
+    def _test_topology(self, graph, p=17, sigma="id_spn", n_tests=5):
         rng = random.Random(123)
         Fp = FiniteField(p)
         sheaf = Sheaf.random(graph, 2, Fp, rng=rng)
@@ -179,17 +180,17 @@ class TestUniqueness:
 
 class TestCPAResistance:
     """
-    Verify that the attacker's system is nonlinear and
-    linear CPA recovery fails.
+    Verify that the V6 default path remains nonlinear enough
+    to defeat the naive linear CPA model.
     """
 
     def test_linear_attack_fails(self):
         """
         CPA with known plaintexts: the linear system for recovering
-        the key should be INCONSISTENT (because the true system
-        has nonlinear terms from σ).
+        the key should be INCONSISTENT on the V6 default path
+        (because the true system has nonlinear terms from σ).
         """
-        proto, key, rng = make_protocol(n_nodes=6, p=17, sigma_name="inverse")
+        proto, key, rng = make_protocol(n_nodes=6, p=17, sigma_name="id_spn")
         Fp = proto.Fp
         dv = proto.dv
         v = 0  # attack node 0
@@ -336,6 +337,20 @@ class TestStructure:
         Fp = FiniteField(31)  # 31 - 1 = 30, 3 | 30
         with pytest.raises(ValueError, match="not invertible"):
             Sigma("cube", Fp)
+
+    def test_default_sigma_is_id_spn(self):
+        """PublicParams defaults to the V6 sigma."""
+        Fp = FiniteField(17)
+        G = Graph.path(6)
+        sheaf = Sheaf.random(G, 2, Fp, rng=random.Random(42))
+        params = PublicParams.generate(sheaf)
+        assert params.sigma.name == "id_spn"
+
+    def test_id_spn_has_expected_degree(self):
+        """The V6 sigma exposes the documented algebraic degree."""
+        Fp = FiniteField(17)
+        sigma = Sigma("id_spn", Fp, d=2)
+        assert sigma.algebraic_degree == 9
 
 
 # ============================================================
