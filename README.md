@@ -5,7 +5,7 @@
 A cryptographic primitive based on the Nonlinear Sheaf Morphism Inversion Problem (NL-SMIP): a polynomial system with secret coefficients coupled by sheaf cohomology over graphs.
 
 > **Paper**: L. Alaniz Pintos, *"The Alaniz Cipher: Encryption from Nonlinear Sheaf Morphisms over Graphs"*, 2026.  
-> **Preprint (DOI)**: [10.5281/zenodo.18908260](https://doi.org/10.5281/zenodo.18908260)  
+> **Preprint (DOI)**: [10.5281/zenodo.18998497](https://doi.org/10.5281/zenodo.18998497)  
 > **ResearchGate**: [Publication 401670518](https://www.researchgate.net/publication/401670518_The_Alaniz_Cipher_Encryption_from_Nonlinear_Sheaf_Morphisms_over_Graphs)
 
 ## Overview
